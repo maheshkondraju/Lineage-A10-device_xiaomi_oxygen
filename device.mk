@@ -31,7 +31,9 @@ PRODUCT_COPY_FILES += \
 
 # Camera
 PRODUCT_PACKAGES += \
-    libshim_camera
+    camera.msm8953 \
+    libmm-qcamera \
+    Snap
 
 # ConsumerIR
 PRODUCT_PACKAGES += \
