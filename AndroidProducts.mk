@@ -14,4 +14,4 @@
 # limitations under the License.
 
 PRODUCT_MAKEFILES := \
-    $(LOCAL_DIR)/revengeos_mido.mk
+    $(LOCAL_DIR)/revengeos_oxygen.mk

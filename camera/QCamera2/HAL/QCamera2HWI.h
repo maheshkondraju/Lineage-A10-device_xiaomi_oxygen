@@ -35,7 +35,7 @@
 #include <utils/Condition.h>
 
 // Camera dependencies
-#include "camera.h"
+#include "hardware/camera.h"
 #include "QCameraAllocator.h"
 #include "QCameraChannel.h"
 #include "QCameraCmdThread.h"
@@ -569,6 +569,7 @@ private:
     void setDisplayFrameSkip(uint32_t start = 0, uint32_t end = 0);
     /*Verifies if frameId is valid to skip*/
     bool isDisplayFrameToSkip(uint32_t frameId);
+    bool needSyncCB(cam_stream_type_t stream_type);
 
 private:
     camera_device_t   mCameraDevice;
