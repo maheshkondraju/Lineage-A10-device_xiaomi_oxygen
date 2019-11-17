@@ -282,7 +282,7 @@ PRODUCT_PACKAGES += \
 
 # Power
 PRODUCT_PACKAGES += \
-    android.hardware.power@1.1-service-qti 
+    android.hardware.power@1.1-service-qti
 
 PRODUCT_COPY_FILES += \
     $(LOCAL_PATH)/configs/powerhint.xml:$(TARGET_COPY_OUT_VENDOR)/etc/powerhint.xml \
@@ -319,7 +319,6 @@ PRODUCT_PACKAGES += \
     libcnefeatureconfig \
     libxml2 \
     telephony-ext \
-    ims-ext-common_system \
     rild \
     libprotobuf-cpp-full \
     qti-telephony-hidl-wrapper \
@@ -329,8 +328,7 @@ PRODUCT_PACKAGES += \
     ims_ext_common.xml
 
 PRODUCT_BOOT_JARS += \
-    telephony-ext \
-    ims-ext-common_system
+    telephony-ext
 
 # Seccomp policy
 PRODUCT_COPY_FILES += \
