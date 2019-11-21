@@ -1,4 +1,4 @@
-# Copyright (c) 2009-2012, 2014-2019, The Linux Foundation. All rights reserved.
+# Copyright (c) 2009-2012, 2014-2018, The Linux Foundation. All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions are met:
@@ -27,7 +27,8 @@
 
 import /vendor/etc/init/hw/init.qcom.usb.rc
 import /vendor/etc/init/hw/init.target.rc
-
+import /init.spectrum.rc
+        
 on early-init
     mount debugfs debugfs /sys/kernel/debug
     chmod 0755 /sys/kernel/debug
@@ -35,9 +36,28 @@ on early-init
     chmod 0620 /dev/kmsg
 
 on init
+    # Create cgroup mount point for memory
+    mkdir /sys/fs/cgroup/memory/bg 0750 root system
+    write /sys/fs/cgroup/memory/bg/memory.swappiness 140
+    write /sys/fs/cgroup/memory/bg/memory.move_charge_at_immigrate 1
+    chown root system /sys/fs/cgroup/memory/bg/tasks
+    chmod 0660 /sys/fs/cgroup/memory/bg/tasks
+
     # ZRAM setup
     write /sys/block/zram0/comp_algorithm lz4
     write /proc/sys/vm/page-cluster 0
+	
+	# Mount and use blkio cgroup
+    mkdir /dev/blkio
+    mount cgroup none /dev/blkio blkio
+    chown system system /dev/blkio
+    chown system system /dev/blkio/tasks
+    chmod 0664 /dev/blkio/tasks
+    mkdir /dev/blkio/bg 0755 system system
+    chown system system /dev/blkio/bg/tasks
+    chmod 0664 /dev/blkio/bg/tasks
+    write /dev/blkio/blkio.weight 1000
+    write /dev/blkio/bg/blkio.weight 100
 
 on post-fs
     chmod 0755 /sys/kernel/debug/tracing
@@ -84,7 +104,7 @@ on early-boot
     chmod 0664 /sys/class/graphics/fb0/mode
     chown system graphics /sys/class/graphics/fb0/msm_cmd_autorefresh_en
     chmod 0664 /sys/class/graphics/fb0/msm_cmd_autorefresh_en
-
+    write /sys/class/graphics/fb0/idle_time 100
 on boot
     chown system system /sys/bus/i2c/devices/3-0038/set_cover_mode
     chmod 0660 /sys/bus/i2c/devices/3-0038/set_cover_mode
@@ -102,6 +122,26 @@ on boot
     chmod 0666 /proc/touchpanel/capacitive_keys_disable
     chown system system /sys/bus/i2c/devices/3-0038/disable_keys
     chmod 0666 /sys/bus/i2c/devices/3-0038/disable_keys
+
+	# Vibrator permissions
+    chown root system /sys/devices/virtual/timed_output/vibrator/vtg_level
+    chmod 0660 /sys/devices/virtual/timed_output/vibrator/vtg_level
+
+    # Kcal permissions
+    chown root system /sys/devices/platform/kcal_ctrl.0/kcal
+    chmod 0660 /sys/devices/platform/kcal_ctrl.0/kcal
+    chown root system /sys/devices/platform/kcal_ctrl.0/kcal_min
+    chmod 0660 /sys/devices/platform/kcal_ctrl.0/kcal_min
+    chown root system /sys/devices/platform/kcal_ctrl.0/kcal_sat
+    chmod 0660 /sys/devices/platform/kcal_ctrl.0/kcal_sat
+    chown root system /sys/devices/platform/kcal_ctrl.0/kcal_hue
+    chmod 0660 /sys/devices/platform/kcal_ctrl.0/kcal_hue
+    chown root system /sys/devices/platform/kcal_ctrl.0/kcal_val
+    chmod 0660 /sys/devices/platform/kcal_ctrl.0/kcal_val
+    chown root system /sys/devices/platform/kcal_ctrl.0/kcal_cont
+    chmod 0660 /sys/devices/platform/kcal_ctrl.0/kcal_cont
+
+    # Dt2w
     chown system system /sys/devices/soc/78b7000.i2c/i2c-3/3-0038/enable_dt2w
     chmod 0664 /sys/devices/soc/78b7000.i2c/i2c-3/3-0038/enable_dt2w
 
@@ -129,7 +169,7 @@ on boot
 #   Assign TCP buffer thresholds to be ceiling value of technology maximums
 #   Increased technology maximums should be reflected here.
     write /proc/sys/net/core/rmem_max  16777216
-    write /proc/sys/net/core/wmem_max  16777216
+    write /proc/sys/net/core/wmem_max  8388608
 
     # To prevent out of order acknowledgements from making
     # connection tracking to treat them as not belonging to
@@ -143,6 +183,10 @@ on boot
     # Set the default message loglevel to KERN_INFO
     write /proc/sys/kernel/printk "6 6 1 7"
 
+    # Glove Mode
+    chown system system /sys/class/tp_glove/device/glove_enable
+    chmod 0660 /sys/class/tp_glove/device/glove_enable
+
     # Notification LED
     chown system system /sys/class/leds/red/blink
     chown system system /sys/class/leds/green/blink
@@ -151,17 +195,33 @@ on boot
     chown system system /sys/class/leds/green/brightness
     chown system system /sys/class/leds/blue/brightness
 
+    # Flashlight
+    chown root system /sys/devices/soc/qpnp-flash-led-25/leds/led:torch_0/max_brightness
+    chmod 0660 /sys/devices/soc/qpnp-flash-led-25/leds/led:torch_0/max_brightness
+    chown root system /sys/devices/soc/qpnp-flash-led-25/leds/led:torch_1/max_brightness
+    chmod 0660 /sys/devices/soc/qpnp-flash-led-25/leds/led:torch_1/max_brightness
+
     chown wifi wifi /sys/module/wlan/parameters/fwpath
 
     # Create hvdcp_opti directory
     mkdir /mnt/vendor/persist/hvdcp_opti 0770 root system
-
-    # Legacy ril-daemon is now disabled by default
-    enable ril-daemon
+	
+on late-fs
+    # boot time fs tune
+    write /sys/block/sda/queue/iostats 0
+    write /sys/block/sda/queue/scheduler anxiety
+    write /sys/block/sda/queue/iosched/slice_idle 0
+    write /sys/block/sda/queue/read_ahead_kb 2048
+    write /sys/block/sda/queue/nr_requests 256
+    write /sys/block/dm-0/queue/read_ahead_kb 2048
+    write /sys/block/dm-1/queue/read_ahead_kb 2048
 
 # msm specific files that need to be created on /data
 on post-fs-data
     mkdir /data/vendor/misc 01771 system system
+
+    # Create directory used for dump collection
+    mkdir /data/vendor/ssrdump 0770 root system
 
     # Create directory used by display clients
     mkdir /data/vendor/display 0770 system graphics
@@ -172,13 +232,6 @@ on post-fs-data
     mkdir /data/vendor/ramdump 0771 root system
     mkdir /data/vendor/bluetooth 0770 bluetooth bluetooth
     mkdir /data/vendor/ramdump/bluetooth 0770 bluetooth bluetooth
-
-    # Create directory for tftp
-    chown system system /data/vendor/tombstones
-    mkdir /data/vendor/tombstones/rfs 0771 system system
-    mkdir /data/vendor/tombstones/rfs/modem 0771 system system
-    mkdir /data/vendor/tombstones/rfs/lpass 0771 system system
-    mkdir /data/vendor/tombstones/rfs/slpi 0771 system system
 
     # Create the directories used by the Wireless subsystem
     mkdir /data/vendor/wifi 0771 wifi wifi
@@ -201,12 +254,23 @@ on post-fs-data
     mkdir /data/vendor/connectivity 0771 radio radio
     chown radio radio /data/vendor/connectivity
 
+    # Create directory used by audio subsystem
+    mkdir /data/vendor/audio 0770 audio audio
+
+    # Create directory for audio delta files
+    mkdir /data/vendor/audio/acdbdata 0770 media audio
+    mkdir /data/vendor/audio/acdbdata/delta 0770 media audio
+
     # Create directory for radio
     mkdir /data/vendor/radio 0770 system radio
 
     # Create directory for modem_config
     mkdir /data/vendor/modem_config 0570 radio root
 
+    # Mounting of persist is moved to 'on emmc-fs' and 'on fs' sections
+    # We chown/chmod /persist again so because mount is run as root + defaults
+    chown root system /persist
+    chmod 0771 /persist
     chown system system /persist/WCNSS_qcom_wlan_nv.bin
 
     #Create directories for Location services
@@ -216,26 +280,24 @@ on post-fs-data
     mkdir /dev/socket/location 0770 gps gps
     mkdir /dev/socket/location/mq 0770 gps gps
     mkdir /dev/socket/location/xtra 0770 gps gps
+    mkdir /dev/socket/location/ehub 0770 gps gps
     mkdir /data/vendor/location-partner 0770 gps gps
     mkdir /data/vendor/location-partner/dre 0770 gps gps
     mkdir /data/vendor/location-partner/ppe 0770 gps gps
-    mkdir /dev/socket/location 0770 gps gps
-    mkdir /dev/socket/location/ehub 0770 gps gps
 
     # Create /data/vendor/time folder for time-services
     mkdir /data/vendor/time/ 0700 system system
-
-    mkdir /data/vendor/audio/ 0770 media audio
-
-    # Create a folder for audio delta files
-    mkdir /data/vendor/audio/acdbdata 0770 media audio
-    mkdir /data/vendor/audio/acdbdata/delta 0770 media audio
 
     setprop vold.post_fs_data_done 1
 
     #Create FM dir for patchdownloader
     mkdir /data/vendor/fm 0770 system system
     chmod 0770 /data/vendor/fm
+
+    #Create PERFD deamon related dirs
+    mkdir /data/vendor/perfd 0770 root system
+    chmod 2770 /data/vendor/perfd
+    rm /data/vendor/perfd/default_values
 
     # Mark the copy complete flag to not completed
     write /data/vendor/radio/copy_complete 0
@@ -257,22 +319,27 @@ on post-fs-data
     # set aggressive read ahead for dm-0 and dm-1 during boot up
     write /sys/block/dm-0/queue/read_ahead_kb 2048
     write /sys/block/dm-1/queue/read_ahead_kb 2048
+    
+    #Start move time data to /data/vendor once post-fs-data done
+    start vendor.move_time_data
 
 on property:sys.boot_completed=1
     write /dev/kmsg "Boot completed "
-    #Reset read ahead for dm-0 and dm-1 to 512kb
-    write /sys/block/dm-0/queue/read_ahead_kb 512
-    write /sys/block/dm-1/queue/read_ahead_kb 512
-
-on property:persist.vendor.radio.atfwd.start=false
-    stop vendor.atfwd
-
-on property:vendor.radio.atfwd.start=false
-    stop vendor.atfwd
+	
+    # end boot time fs tune
+    write /sys/block/sda/queue/read_ahead_kb 128
+    write /sys/block/sda/queue/nr_requests 128
+    write /sys/block/dm-0/queue/read_ahead_kb 128
+    write /sys/block/dm-1/queue/read_ahead_kb 128
+    write /sys/block/sda/queue/iostats 1
+	
+	#Wakeup fix
+    chown system system /sys/devices/soc/qpnp-smbcharger-18/power_supply/battery/subsystem/bms/hi_power
+    chmod 0664 /sys/devices/soc/qpnp-smbcharger-18/power_supply/battery/subsystem/bms/hi_power
+    write /sys/devices/soc/qpnp-smbcharger-18/power_supply/battery/subsystem/bms/hi_power 1
 
 on property:vold.decrypt=trigger_restart_framework
     restart vendor.camera-provider-2-4
-    restart vendor.audio-hal-2-0
 
 on property:persist.env.fastdorm.enabled=true
     setprop persist.radio.data_no_toggle 1
@@ -319,6 +386,9 @@ service vendor.atfwd /vendor/bin/ATFWD-daemon
     group system radio
     writepid /dev/cpuset/system-background/tasks
 
+on property:persist.vendor.radio.atfwd.start=true
+    start vendor.atfwd
+
 service vendor.netmgrd /vendor/bin/netmgrd
     class main
     writepid /dev/cpuset/system-background/tasks
@@ -333,6 +403,7 @@ service vendor.dataqti /vendor/bin/qti
     class main
     user radio
     group radio oem_2901 diag usb net_admin
+    disabled
 
 service vendor.sensors.qti /vendor/bin/sensors.qti
     class core
@@ -353,9 +424,16 @@ service wpa_supplicant /vendor/bin/hw/wpa_supplicant \
 #   group wifi inet keystore
     interface android.hardware.wifi.supplicant@1.0::ISupplicant default
     interface android.hardware.wifi.supplicant@1.1::ISupplicant default
-    interface android.hardware.wifi.supplicant@1.2::ISupplicant default
     class main
     socket vendor_wpa_wlan0 dgram 660 wifi wifi
+    disabled
+    oneshot
+
+# Data Migration
+service vendor.move_wifi_data /system/bin/move_wifi_data.sh
+    class main
+    user  wifi
+    group wifi
     disabled
     oneshot
 
@@ -384,10 +462,6 @@ service qcom-post-boot /vendor/bin/init.qcom.post_boot.sh
 on property:sys.boot_completed=1
     start qcom-post-boot
 
-on property:init.svc.qcom-post-boot=stopped
-    # Set min gpu freq as 320mhz
-    write /sys/class/kgsl/kgsl-3d0/devfreq/min_freq 320000000
-
 on property:ro.data.large_tcp_window_size=true
     # Adjust socket buffer to enlarge TCP receive window for high bandwidth (e.g. DO-RevB)
     write /proc/sys/net/ipv4/tcp_adv_win_scale  2
@@ -398,7 +472,7 @@ on property:sys.sysctl.tcp_adv_win_scale=*
 service vendor.ril-daemon2 /vendor/bin/hw/rild -c 2
     class main
     user radio
-    group radio cache inet misc audio sdcard_r sdcard_rw diag log
+    group radio cache inet misc audio sdcard_r sdcard_rw diag oem_2901 log
     capabilities BLOCK_SUSPEND NET_ADMIN NET_RAW
 
 service charger /sbin/chargeonlymode
@@ -413,8 +487,14 @@ service vendor.msm_irqbalance /vendor/bin/msm_irqbalance -f /vendor/etc/msm_irqb
     disabled
 
 on charger
+    setprop persist.sys.usb.config mass_storage
     load_system_props
     start qcom-post-boot
+
+#Mixed HWC versions among targets
+on property:init.svc.surfaceflinger=restarting
+    restart vendor.hwcomposer-2-1
+    restart vendor.hwcomposer-2-2
 
 service time_daemon /vendor/bin/time_daemon
     class main
@@ -422,12 +502,19 @@ service time_daemon /vendor/bin/time_daemon
     group root
     writepid /dev/cpuset/system-background/tasks
 
+service vendor.move_time_data /system/bin/move_time_data.sh
+    class main
+    user system
+    group system
+    disabled
+    oneshot
+
 service vendor.audio-hal-2-0 /vendor/bin/hw/android.hardware.audio@2.0-service
     override
     class hal
     user audioserver
     # media gid needed for /dev/fm (radio) and for /data/misc/media (tee)
-    group audio camera drmrpc inet media mediadrm net_bt net_bt_admin net_bw_acct oem_2901 wakelock system
+    group audio camera drmrpc inet media mediadrm net_bt net_bt_admin net_bw_acct oem_2901 wakelock
     capabilities BLOCK_SUSPEND
     ioprio rt 4
     writepid /dev/cpuset/foreground/tasks /dev/stune/foreground/tasks
@@ -443,3 +530,7 @@ service vendor.power_off_alarm /vendor/bin/power_off_alarm
     group system
     disabled
     oneshot
+
+on property:dev.bootcomplete=1
+    setprop sys.io.scheduler "anxiety"
+
