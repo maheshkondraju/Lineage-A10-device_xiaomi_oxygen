@@ -203,6 +203,10 @@ on boot
 
     chown wifi wifi /sys/module/wlan/parameters/fwpath
 
+    # Legacy ril-daemon is now disabled by default
+    enable ril-daemon
+
+
     # Create hvdcp_opti directory
     mkdir /mnt/vendor/persist/hvdcp_opti 0770 root system
 	
@@ -424,6 +428,7 @@ service wpa_supplicant /vendor/bin/hw/wpa_supplicant \
 #   group wifi inet keystore
     interface android.hardware.wifi.supplicant@1.0::ISupplicant default
     interface android.hardware.wifi.supplicant@1.1::ISupplicant default
+    interface android.hardware.wifi.supplicant@1.2::ISupplicant default
     class main
     socket vendor_wpa_wlan0 dgram 660 wifi wifi
     disabled
