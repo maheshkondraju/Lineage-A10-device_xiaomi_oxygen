@@ -99,4 +99,4 @@ LOCAL_REQUIRED_MODULES := \
     $(addsuffix .vndk-sp-ext-gen,$(VNDK_SP_EXT_LIBRARIES)) \
     $(addsuffix .vndk-ext-gen,$(EXTRA_VENDOR_LIBRARIES))
 include $(BUILD_PHONY_PACKAGE)
-endif
+endif 
